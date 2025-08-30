@@ -87,7 +87,17 @@ class Carregador:
             print(f"[{self.carregador_id}] Nenhum carro para desconectar.")
             return
 
-        self.publicar_evento("fim_carga", self.carro_conectado)
+        timestamp = self.clock.send_event()
+        payload = {
+            "carregador": self.carregador_id,
+            "carro": self.carro_conectado,
+            "acao": "fim_carga",
+            "timestamp": timestamp,
+            "energia_consumida_kWh": round(self.energia_consumida, 2)
+        }
+        self.client.publish(self.topic_eventos, json.dumps(payload))
+        print(f"[{self.carregador_id} | Clock: {timestamp}] Evento publicado: {payload}")
+
         self.carro_conectado = None
         self.publicar_status()
 
