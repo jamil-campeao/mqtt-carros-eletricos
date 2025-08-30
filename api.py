@@ -4,18 +4,25 @@ import threading
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import paho.mqtt.client as mqtt
+import subprocess
+from pydantic import BaseModel
+import sys
 
-# --- Configuração da API FastAPI ---
 app = FastAPI()
 
-# Permite que o frontend (rodando em outra porta/endereço) acesse a API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Em produção, restrinja para o endereço do seu frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+carregadores_ativos = {}
+billing_process = None
+
+class CarregadorRequest(BaseModel):
+    carregador_id: str
 
 # --- Gerenciador de Conexões WebSocket ---
 class ConnectionManager:
@@ -89,6 +96,116 @@ threading.Thread(target=mqtt_client.loop_forever, daemon=True).start()
 
 
 # --- Endpoints da API ---
+
+@app.post("/api/carregadores", status_code=201)
+async def iniciar_carregador(request: CarregadorRequest):
+    """
+    Inicia um novo processo de carregador.
+    """
+    carregador_id = request.carregador_id
+    if carregador_id in carregadores_ativos:
+        return {"status": "erro", "mensagem": f"Carregador {carregador_id} já está em execução."}
+
+    try:
+        # sys.executable garante que estamos usando o mesmo interpretador Python
+        # que está rodando a API para executar o script.
+        comando = [sys.executable, "backend/carregador.py", carregador_id]
+        
+        # Popen inicia o processo em segundo plano, sem bloquear a API
+        processo = subprocess.Popen(comando)
+        
+        # Armazena o objeto do processo no nosso dicionário
+        carregadores_ativos[carregador_id] = processo
+        
+        print(f"[API] Iniciado carregador {carregador_id} com PID: {processo.pid}")
+        return {"status": "sucesso", "mensagem": f"Carregador {carregador_id} iniciado.", "pid": processo.pid}
+    except Exception as e:
+        return {"status": "erro", "mensagem": f"Falha ao iniciar carregador: {e}"}
+    
+@app.delete("/api/carregadores/{carregador_id}", status_code=200)
+async def parar_carregador(carregador_id: str):
+    """
+    Para um processo de carregador em execução.
+    """
+    if carregador_id not in carregadores_ativos:
+        return {"status": "erro", "mensagem": f"Carregador {carregador_id} não encontrado ou não está em execução."}
+
+    try:
+        processo = carregadores_ativos[carregador_id]
+        processo.terminate()  # Envia um sinal para o processo terminar
+        processo.wait(timeout=5) # Espera um pouco para o processo encerrar
+        
+        del carregadores_ativos[carregador_id]
+        
+        print(f"[API] Parado carregador {carregador_id} com PID: {processo.pid}")
+        return {"status": "sucesso", "mensagem": f"Carregador {carregador_id} parado."}
+    except Exception as e:
+        return {"status": "erro", "mensagem": f"Falha ao parar carregador: {e}"}
+    
+@app.get("/api/carregadores/ativos")
+async def listar_carregadores_ativos():
+    """
+    Lista os IDs de todos os carregadores atualmente gerenciados pela API.
+    """
+    # Verifica se os processos ainda estão rodando
+    ativos = []
+    for cid, processo in list(carregadores_ativos.items()):
+        if processo.poll() is None: # poll() retorna None se o processo ainda está rodando
+            ativos.append(cid)
+        else:
+            # Limpa processos que morreram sozinhos
+            del carregadores_ativos[cid]
+            
+    return {"carregadores_ativos": ativos}
+
+@app.post("/api/billing/start", status_code=201)
+async def iniciar_billing():
+    """
+    Inicia o processo do serviço de billing.
+    """
+    global billing_process
+    # Verifica se o processo já não está rodando
+    if billing_process and billing_process.poll() is None:
+        return {"status": "erro", "mensagem": "O serviço de billing já está em execução."}
+
+    try:
+        comando = [sys.executable, "backend/billing.py"]
+        billing_process = subprocess.Popen(comando)
+        
+        print(f"[API] Iniciado serviço de billing com PID: {billing_process.pid}")
+        return {"status": "sucesso", "mensagem": "Serviço de billing iniciado.", "pid": billing_process.pid}
+    except Exception as e:
+        billing_process = None
+        return {"status": "erro", "mensagem": f"Falha ao iniciar o serviço de billing: {e}"}
+    
+@app.post("/api/billing/stop", status_code=200)
+async def parar_billing():
+    """
+    Para o processo do serviço de billing.
+    """
+    global billing_process
+    if not billing_process or billing_process.poll() is not None:
+        return {"status": "erro", "mensagem": "O serviço de billing não está em execução."}
+
+    try:
+        pid = billing_process.pid
+        billing_process.terminate()
+        billing_process.wait(timeout=5)
+        billing_process = None
+        
+        print(f"[API] Parado serviço de billing com PID: {pid}")
+        return {"status": "sucesso", "mensagem": "Serviço de billing parado."}
+    except Exception as e:
+        return {"status": "erro", "mensagem": f"Falha ao parar o serviço de billing: {e}"}
+    
+@app.get("/api/billing/status")
+async def status_billing():
+    """
+    Verifica e retorna o status do serviço de billing.
+    """
+    if billing_process and billing_process.poll() is None:
+        return {"status": "ativo", "pid": billing_process.pid}
+    return {"status": "inativo", "pid": None}
 
 @app.get("/api/estado-inicial")
 async def get_initial_state():

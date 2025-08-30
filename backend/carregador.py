@@ -24,6 +24,23 @@ class Carregador:
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 
+        # --- IMPLEMENTAÇÃO DO LAST WILL AND TESTAMENT (LWT) ---
+        # 1. Defino a mensagem do "testamento"
+        lwt_payload = json.dumps({
+            "carregador": self.carregador_id,
+            "status": "offline",
+            "carro_conectado": None,
+            "energia_consumida_kWh": 0
+        })
+
+        # 2. Configuração do LWT:
+        # Tópico: O próprio tópico de status do carregador
+        # Payload: A mensagem de offline
+        # QoS: 1 (garante que a mensagem seja entregue pelo menos uma vez)
+        # Retain: True (a mensagem de 'offline' fica retida no tópico)
+        self.client.will_set(self.topic_status, payload=lwt_payload, qos=1, retain=True)
+        # ---------------------------------------------------------
+
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
             print(f"Carregador {self.carregador_id} conectado ao Broker MQTT!")
