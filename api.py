@@ -7,6 +7,9 @@ import paho.mqtt.client as mqtt
 import subprocess
 from pydantic import BaseModel
 import sys
+import os
+
+MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "localhost")
 
 app = FastAPI()
 
@@ -87,7 +90,7 @@ def setup_mqtt_client():
 
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect("localhost", 1883, 60)
+    client.connect(MQTT_BROKER_HOST, 1883, 60)
     return client
 
 # Inicia o cliente MQTT em uma thread separada para não bloquear a API
