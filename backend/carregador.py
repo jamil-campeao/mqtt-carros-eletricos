@@ -3,7 +3,10 @@ import json
 import time
 import random
 import sys
+import os
 from lamport_clock import LamportClock
+
+MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "localhost")
 
 class Carregador:
     def __init__(self, carregador_id, broker_address="localhost"):
@@ -126,8 +129,8 @@ class Carregador:
             print(f"[{self.carregador_id}] Carro {self.carro_conectado} - Consumo: {self.energia_consumida:.2f} kWh")
 
     def run(self):
-        self.client.connect(self.broker_address, 1883, 60)
-        self.client.loop_start() # Inicia a thread de rede do MQTT
+        self.client.connect(MQTT_BROKER_HOST, 1883, 60)
+        self.client.loop_start()
 
         # Simulação principal
         try:
