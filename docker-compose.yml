@@ -1,0 +1,46 @@
+services:
+  # Serviço 1: O Broker Mosquitto
+  mosquitto-broker:
+    build:
+      context: .
+      dockerfile: mosquitto.Dockerfile
+    container_name: mosquitto-broker
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
+
+  # Serviço 2: O Banco de Dados PostgreSQL
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    environment:
+      - POSTGRES_DB=mqtt_db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    ports:
+      # Expõe na porta 5433 para não conflitar com um possível Postgres local
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Serviço 3: Sua API principal
+  api-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-service
+    ports:
+      - "8000:8000"
+    environment:
+      # Conecta aos outros serviços usando seus nomes
+      - MQTT_BROKER_HOST=mosquitto-broker
+      - DATABASE_URL=postgresql://user:password@postgres-db:5432/mqtt_db
+    depends_on:
+      - mosquitto-broker
+      - postgres-db
+    restart: unless-stopped
+
+# Volume para persistir os dados do banco de dados
+volumes:
+  postgres_data:

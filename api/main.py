@@ -53,7 +53,7 @@ app_state = {
 }
 
 # --- Lógica do Cliente MQTT ---
-def setup_mqtt_client():
+def setup_mqtt_client(loop):
     client = mqtt.Client(client_id="api-service")
     
     def on_connect(client, userdata, flags, rc):
@@ -81,9 +81,6 @@ def setup_mqtt_client():
                 if len(app_state["eventos"]) > 50:
                     app_state["eventos"].pop(0)
 
-            # Transmite a atualização para todos os clientes WebSocket conectados
-            # Precisamos usar o loop de eventos do asyncio para rodar a função async
-            loop = asyncio.get_event_loop()
             asyncio.run_coroutine_threadsafe(
                 manager.broadcast(json.dumps({"topic": msg.topic, "payload": payload})), 
                 loop
@@ -102,13 +99,12 @@ async def startup_event():
     Este código é executado quando a aplicação FastAPI inicia.
     """
     # Guardamos o cliente no estado da aplicação para poder acessá-lo no shutdown
-    app.state.mqtt_client = setup_mqtt_client()
+    main_loop = asyncio.get_running_loop()
+    app.state.mqtt_client = setup_mqtt_client(main_loop)
     app.state.mqtt_client.connect(MQTT_BROKER_HOST, 1883, 60)
     
     # Inicia o loop do MQTT em uma thread separada
     threading.Thread(target=app.state.mqtt_client.loop_forever, daemon=True).start()
-    # Adiciona um loop de eventos para a função on_message
-    asyncio.get_event_loop()
 
 @app.on_event("shutdown")
 async def shutdown_event():
