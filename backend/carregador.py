@@ -7,6 +7,7 @@ import os
 from lamport_clock import LamportClock
 
 MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "localhost")
+MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 
 class Carregador:
     def __init__(self, carregador_id, broker_address="localhost"):
@@ -129,7 +130,7 @@ class Carregador:
             print(f"[{self.carregador_id}] Carro {self.carro_conectado} - Consumo: {self.energia_consumida:.2f} kWh")
 
     def run(self):
-        self.client.connect(MQTT_BROKER_HOST, 1883, 60)
+        self.client.connect(MQTT_BROKER_HOST, MQTT_PORT, 60)
         self.client.loop_start()
 
         # Simulação principal

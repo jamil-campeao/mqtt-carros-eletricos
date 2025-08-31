@@ -13,6 +13,7 @@ load_dotenv()
 PRECO_POR_KWH = 0.75
 DATABASE_URL = os.getenv("DATABASE_URL")
 MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "localhost")
+MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 
 
 def salvar_transacao_db(transacao):
@@ -98,7 +99,7 @@ class BillingService:
         while attempts < max_retries:
             try:
                 print(f"[Billing] Tentando conectar ao broker em '{MQTT_BROKER_HOST}' (Tentativa {attempts + 1}/{max_retries})...")
-                self.client.connect(MQTT_BROKER_HOST, 1883, 60)
+                self.client.connect(MQTT_BROKER_HOST, MQTT_PORT, 60)
                 print("[Billing] Conexão com o broker MQTT bem-sucedida!")
                 
                 # Se a conexão for bem-sucedida, inicia o loop e sai da lógica de retry
