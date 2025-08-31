@@ -23,4 +23,4 @@ EXPOSE 8000
 #    (Ele pode ser sobrescrito pelo "Start Command" nas configurações da Railway,
 #    mas é uma boa prática tê-lo aqui).
 #    --host 0.0.0.0 é crucial para ser acessível na rede.
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
