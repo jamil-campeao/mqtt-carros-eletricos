@@ -1,4 +1,4 @@
-import paho.mqtt.client as mqtt
+from paho.mqtt import client as mqtt_client
 import json
 import time
 import random
@@ -20,7 +20,7 @@ class Carregador:
         self.topic_global_eventos = "carregadores/+/eventos"
 
         # Configuração do cliente MQTT
-        self.client = mqtt.Client(client_id=f"carregador-{self.carregador_id}")
+        self.client = mqtt_client.Client(client_id=f"carregador-{self.carregador_id}")
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 

@@ -1,8 +1,11 @@
-import paho.mqtt.client as mqtt
+from paho.mqtt import client as mqtt_client
 import json
 from lamport_clock import LamportClock
+import sys
 import os
 import psycopg2
+import time
+import socket
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,7 +39,7 @@ class BillingService:
         self.clock = LamportClock()
         self.topic_eventos = "carregadores/+/eventos"
         self.topic_transacoes = "billing/transacoes"
-        self.client = mqtt.Client(client_id="billing-service")
+        self.client = mqtt_client.Client(client_id="billing-service")
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 
@@ -84,8 +87,30 @@ class BillingService:
         if not DATABASE_URL:
             print("ERRO: A variável de ambiente DATABASE_URL não foi definida.")
             return
-        self.client.connect(MQTT_BROKER_HOST, 1883, 60)
-        self.client.loop_forever()
+        if not MQTT_BROKER_HOST:
+            print("ERRO: A variável de ambiente MQTT_BROKER_HOST não foi definida.")
+            return
+
+        max_retries = 5
+        retry_delay = 5  # segundos
+        attempts = 0
+
+        while attempts < max_retries:
+            try:
+                print(f"[Billing] Tentando conectar ao broker em '{MQTT_BROKER_HOST}' (Tentativa {attempts + 1}/{max_retries})...")
+                self.client.connect(MQTT_BROKER_HOST, 1883, 60)
+                print("[Billing] Conexão com o broker MQTT bem-sucedida!")
+                
+                # Se a conexão for bem-sucedida, inicia o loop e sai da lógica de retry
+                self.client.loop_forever()
+                return # Sai da função run se o loop_forever for interrompido
+
+            except (socket.gaierror, ConnectionRefusedError, TimeoutError) as e:
+                print(f"[Billing] Falha na conexão: {e}. Tentando novamente em {retry_delay} segundos...")
+                attempts += 1
+                time.sleep(retry_delay)
+        
+        print(f"[Billing] ERRO: Não foi possível conectar ao broker após {max_retries} tentativas. Desligando.")
 
 if __name__ == "__main__":
     billing = BillingService()

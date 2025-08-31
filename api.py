@@ -83,19 +83,42 @@ def setup_mqtt_client():
 
             # Transmite a atualização para todos os clientes WebSocket conectados
             # Precisamos usar o loop de eventos do asyncio para rodar a função async
-            asyncio.run(manager.broadcast(json.dumps({"topic": msg.topic, "payload": payload})))
+            loop = asyncio.get_event_loop()
+            asyncio.run_coroutine_threadsafe(
+                manager.broadcast(json.dumps({"topic": msg.topic, "payload": payload})), 
+                loop
+            )
 
         except Exception as e:
             print(f"Erro ao processar mensagem MQTT: {e}")
 
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect(MQTT_BROKER_HOST, 1883, 60)
     return client
 
-# Inicia o cliente MQTT em uma thread separada para não bloquear a API
-mqtt_client = setup_mqtt_client()
-threading.Thread(target=mqtt_client.loop_forever, daemon=True).start()
+@app.on_event("startup")
+async def startup_event():
+    """
+    Este código é executado quando a aplicação FastAPI inicia.
+    """
+    # Guardamos o cliente no estado da aplicação para poder acessá-lo no shutdown
+    app.state.mqtt_client = setup_mqtt_client()
+    app.state.mqtt_client.connect(MQTT_BROKER_HOST, 1883, 60)
+    
+    # Inicia o loop do MQTT em uma thread separada
+    threading.Thread(target=app.state.mqtt_client.loop_forever, daemon=True).start()
+    # Adiciona um loop de eventos para a função on_message
+    asyncio.get_event_loop()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Este código é executado quando a aplicação FastAPI desliga.
+    """
+    print("Desconectando do MQTT...")
+    app.state.mqtt_client.loop_stop()
+    app.state.mqtt_client.disconnect()
+# ----------------------------------------------------
 
 
 # --- Endpoints da API ---
@@ -115,7 +138,7 @@ async def iniciar_carregador(request: CarregadorRequest):
         comando = [sys.executable, "backend/carregador.py", carregador_id]
         
         # Popen inicia o processo em segundo plano, sem bloquear a API
-        processo = subprocess.Popen(comando)
+        processo = subprocess.Popen(comando, env=os.environ.copy())
         
         # Armazena o objeto do processo no nosso dicionário
         carregadores_ativos[carregador_id] = processo
@@ -173,7 +196,7 @@ async def iniciar_billing():
 
     try:
         comando = [sys.executable, "backend/billing.py"]
-        billing_process = subprocess.Popen(comando)
+        billing_process = subprocess.Popen(comando, env=os.environ.copy())
         
         print(f"[API] Iniciado serviço de billing com PID: {billing_process.pid}")
         return {"status": "sucesso", "mensagem": "Serviço de billing iniciado.", "pid": billing_process.pid}
