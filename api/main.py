@@ -1,7 +1,8 @@
 import asyncio
 import json
 import threading
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 import paho.mqtt.client as mqtt
 import subprocess
@@ -10,6 +11,7 @@ import sys
 import os
 
 MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "localhost")
+TOKEN_API = os.getenv("TOKEN_API")
 
 app = FastAPI()
 
@@ -20,6 +22,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+api_key_scheme = APIKeyHeader(name="Authorization")
 
 carregadores_ativos = {}
 billing_process = None
@@ -51,6 +55,15 @@ app_state = {
     "carregadores": {},
     "eventos": []
 }
+
+async def verificar_api_key(api_key: str = Depends(api_key_scheme)):
+    if api_key != TOKEN_API:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de autorização inválido ou ausente",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return api_key
 
 # --- Lógica do Cliente MQTT ---
 def setup_mqtt_client(loop):
@@ -119,7 +132,7 @@ async def shutdown_event():
 
 # --- Endpoints da API ---
 
-@app.post("/api/carregadores", status_code=201)
+@app.post("/api/carregadores", status_code=201, dependencies=[Depends(verificar_api_key)])
 async def iniciar_carregador(request: CarregadorRequest):
     """
     Inicia um novo processo de carregador.
@@ -144,7 +157,7 @@ async def iniciar_carregador(request: CarregadorRequest):
     except Exception as e:
         return {"status": "erro", "mensagem": f"Falha ao iniciar carregador: {e}"}
     
-@app.delete("/api/carregadores/{carregador_id}", status_code=200)
+@app.delete("/api/carregadores/{carregador_id}", status_code=200, dependencies=[Depends(verificar_api_key)])
 async def parar_carregador(carregador_id: str):
     """
     Para um processo de carregador em execução.
@@ -164,7 +177,7 @@ async def parar_carregador(carregador_id: str):
     except Exception as e:
         return {"status": "erro", "mensagem": f"Falha ao parar carregador: {e}"}
     
-@app.get("/api/carregadores/ativos")
+@app.get("/api/carregadores/ativos", dependencies=[Depends(verificar_api_key)])
 async def listar_carregadores_ativos():
     """
     Lista os IDs de todos os carregadores atualmente gerenciados pela API.
@@ -180,7 +193,7 @@ async def listar_carregadores_ativos():
             
     return {"carregadores_ativos": ativos}
 
-@app.post("/api/billing/start", status_code=201)
+@app.post("/api/billing/start", status_code=201, dependencies=[Depends(verificar_api_key)])
 async def iniciar_billing():
     """
     Inicia o processo do serviço de billing.
@@ -200,7 +213,7 @@ async def iniciar_billing():
         billing_process = None
         return {"status": "erro", "mensagem": f"Falha ao iniciar o serviço de billing: {e}"}
     
-@app.post("/api/billing/stop", status_code=200)
+@app.post("/api/billing/stop", status_code=200, dependencies=[Depends(verificar_api_key)])
 async def parar_billing():
     """
     Para o processo do serviço de billing.
@@ -220,7 +233,7 @@ async def parar_billing():
     except Exception as e:
         return {"status": "erro", "mensagem": f"Falha ao parar o serviço de billing: {e}"}
     
-@app.get("/api/billing/status")
+@app.get("/api/billing/status", dependencies=[Depends(verificar_api_key)])
 async def status_billing():
     """
     Verifica e retorna o status do serviço de billing.
@@ -229,14 +242,14 @@ async def status_billing():
         return {"status": "ativo", "pid": billing_process.pid}
     return {"status": "inativo", "pid": None}
 
-@app.get("/api/estado-inicial")
+@app.get("/api/estado-inicial", dependencies=[Depends(verificar_api_key)])
 async def get_initial_state():
     """
     Fornece o estado completo atual quando o frontend carrega a página.
     """
     return app_state
 
-@app.websocket("/ws")
+@app.websocket("/ws", dependencies=[Depends(verificar_api_key)])
 async def websocket_endpoint(websocket: WebSocket):
     """
     Mantém a conexão em tempo real com o frontend.

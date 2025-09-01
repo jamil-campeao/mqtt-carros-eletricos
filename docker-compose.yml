@@ -32,6 +32,8 @@ services:
     container_name: api-service
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       # Conecta aos outros serviços usando seus nomes
       - MQTT_BROKER_HOST=mosquitto-broker
