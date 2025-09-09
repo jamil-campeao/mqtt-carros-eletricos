@@ -8,6 +8,7 @@ import subprocess
 from pydantic import BaseModel
 import sys
 import os
+from init_db import criar_tabelas_transacoes
 
 MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "localhost")
 TOKEN_API = os.getenv("TOKEN_API")
@@ -108,6 +109,7 @@ async def startup_event():
     Este código é executado quando a aplicação FastAPI inicia.
     """
     # Guardamos o cliente no estado da aplicação para poder acessá-lo no shutdown
+    criar_tabelas_transacoes()
     main_loop = asyncio.get_running_loop()
     app.state.mqtt_client = setup_mqtt_client(main_loop)
     app.state.mqtt_client.connect(MQTT_BROKER_HOST, 1883, 60)
