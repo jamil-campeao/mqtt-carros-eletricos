@@ -57,12 +57,19 @@ app_state = {
 }
 
 async def verificar_api_key(api_key: str = Depends(api_key_scheme)):
+    # --- Linhas para depuração (adicionar) ---
+    print(f"Token esperado pela API: '{TOKEN_API}'")
+    print(f"Token recebido na requisição: '{api_key}'")
+    # -----------------------------------------
+
     if api_key != TOKEN_API:
+        print("Resultado da comparação: FALHOU") # Ajuda a confirmar a falha
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token de autorização inválido ou ausente",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    print("Resultado da comparação: SUCESSO") # Ajuda a confirmar o sucesso
     return api_key
 
 # --- Lógica do Cliente MQTT ---
