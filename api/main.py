@@ -1,8 +1,7 @@
 import asyncio
 import json
 import threading
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
-from fastapi.security import APIKeyHeader
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 import paho.mqtt.client as mqtt
 import subprocess
@@ -22,8 +21,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-api_key_scheme = APIKeyHeader(name="Authorization")
 
 carregadores_ativos = {}
 billing_process = None
@@ -56,14 +53,13 @@ app_state = {
     "eventos": []
 }
 
-async def verificar_api_key(api_key: str = Depends(api_key_scheme)):
-    if api_key != TOKEN_API:
+async def verificar_api_key(authorization: str | None = Header(default=None)):
+    if authorization != TOKEN_API:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de autorização inválido ou ausente",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Token de autorização inválido ou ausente"
         )
-    return api_key
+    return authorization
 
 # --- Lógica do Cliente MQTT ---
 def setup_mqtt_client(loop):
