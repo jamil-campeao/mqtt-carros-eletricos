@@ -1,7 +1,7 @@
 import asyncio
 import json
 import threading
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Header
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 import paho.mqtt.client as mqtt
 import subprocess
@@ -61,6 +61,14 @@ async def verificar_api_key(authorization: str | None = Header(default=None)):
             detail="Token de autorização inválido ou ausente"
         )
     return authorization
+
+async def verificar_api_key_ws(token: str | None = Query(default=None)):
+    if token != TOKEN_API:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de autorização inválido ou ausente"
+        )
+    return token
 
 # --- Lógica do Cliente MQTT ---
 def setup_mqtt_client(loop):
@@ -246,7 +254,7 @@ async def get_initial_state():
     """
     return app_state
 
-@app.websocket("/ws", dependencies=[Depends(verificar_api_key)])
+@app.websocket("/ws", dependencies=[Depends(verificar_api_key_ws)])
 async def websocket_endpoint(websocket: WebSocket):
     """
     Mantém a conexão em tempo real com o frontend.
