@@ -89,7 +89,8 @@ class Carregador:
             "carregador": self.carregador_id,
             "status": "ocupado" if self.carro_conectado else "livre",
             "carro_conectado": self.carro_conectado,
-            "energia_consumida_kWh": round(self.energia_consumida, 2)
+            "energia_consumida_kWh": round(self.energia_consumida, 2),
+            "timestamp": self.clock.get_time(),
         }
         self.client.publish(self.topic_status, json.dumps(payload), retain=True) # Retain para que novos clientes saibam o último estado
 
