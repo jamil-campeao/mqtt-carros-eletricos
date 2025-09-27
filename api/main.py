@@ -162,6 +162,13 @@ async def iniciar_carregador(request: CarregadorRequest):
     except Exception as e:
         return {"status": "erro", "mensagem": f"Falha ao iniciar carregador: {e}"}
     
+@app.delete("/api/limpar-carregadores-e-eventos", status_code=200, dependencies=[Depends(verificar_api_key)])
+async def limpar_carregadores_e_eventos():
+    global carregadores_ativos
+    carregadores_ativos = {}
+    app_state["eventos"] = []
+    return {"status": "sucesso", "mensagem": "Carregadores e eventos limpos."}
+    
 @app.delete("/api/carregadores/{carregador_id}", status_code=200, dependencies=[Depends(verificar_api_key)])
 async def parar_carregador(carregador_id: str):
     """
